@@ -1,34 +1,76 @@
 import maya.cmds as cmds
 
-blend_matrix_node = None
+class MatrixConstraint:
+    def __init__(self):
+        self.blend_matrix_node = None
+        self.weight_translate_slider = "translateWeightSlider"
+        self.weight_rotate_slider = "rotateWeightSlider"
+        self.weight_scale_slider = "scaleWeightSlider"
 
-def update_blend_matrix_weights():
-    global blend_matrix_node
-    if blend_matrix_node:
-        translate_weight = cmds.floatSliderGrp(weight_translate_slider, query=True, value=True)
-        rotate_weight = cmds.floatSliderGrp(weight_rotate_slider, query=True, value=True)
-        scale_weight = cmds.floatSliderGrp(weight_scale_slider, query=True, value=True)
+        # Initialize pick matrix options
+        self.pick_matrix_options = {
+        'rotate': True,
+        'scale': True,
+        'translate': True
+        }
 
-        # Setting the same weight to all targets for simplicity. Adjust as needed for specific targets.
-        target_count = cmds.getAttr(f"{blend_matrix_node}.target", size=True)
+        # Initialize weight values
+        self.weight_translate = 0.5
+        self.weight_rotate = 0.5
+        self.weight_scale = 0.5
+        
+
+    def update_pick_matrix_options(self):
+        """ Updates the pick matrix options based on UI checkboxes """
+        if cmds.checkBox('rotateCheckBox', exists=True):
+            self.pick_matrix_options['rotate'] = cmds.checkBox('rotateCheckBox', query=True, value=True)
+        if cmds.checkBox('scaleCheckBox', exists=True):
+            self.pick_matrix_options['scale'] = cmds.checkBox('scaleCheckBox', query=True, value=True)
+        if cmds.checkBox('translateCheckBox', exists=True):
+            self.pick_matrix_options['translate'] = cmds.checkBox('translateCheckBox', query=True, value=True)
+
+        print("Updated Pick Matrix Options:", self.pick_matrix_options)  # Debugging print
+
+
+    def update_blend_matrix_weights(self):
+        """ Updates the blend matrix weights based on UI sliders. """
+        
+        if cmds.floatSliderGrp("translateWeightSlider", exists=True):
+           self.weight_translate = cmds.floatSliderGrp("translateWeightSlider", query=True, value=True)
+        if cmds.floatSliderGrp("rotateWeightSlider", exists=True):
+            self.weight_rotate = cmds.floatSliderGrp("rotateWeightSlider", query=True, value=True)
+        if cmds.floatSliderGrp("scaleWeightSlider", exists=True):
+            self.weight_scale = cmds.floatSliderGrp("scaleWeightSlider", query=True, value=True)
+
+        if not self.blend_matrix_node or not cmds.objExists(self.blend_matrix_node):
+            print(" Error: Blend Matrix node does not exist. Skipping weight update.")
+            return
+
+        target_count = cmds.getAttr(f"{self.blend_matrix_node}.target", size=True) if cmds.attributeQuery('target', node=self.blend_matrix_node, exists=True) else 0
+
+        if target_count == 0:
+            print(f" Warning: Blend Matrix '{self.blend_matrix_node}' has no targets. Skipping weight updates.")
+            return
+
         for i in range(target_count):
-            cmds.setAttr(f"{blend_matrix_node}.target[{i}].translateWeight", translate_weight)
-            cmds.setAttr(f"{blend_matrix_node}.target[{i}].rotateWeight", rotate_weight)
-            cmds.setAttr(f"{blend_matrix_node}.target[{i}].scaleWeight", scale_weight)
+            cmds.setAttr(f"{self.blend_matrix_node}.target[{i}].translateWeight", self.weight_translate)
+            cmds.setAttr(f"{self.blend_matrix_node}.target[{i}].rotateWeight", self.weight_rotate)
+            cmds.setAttr(f"{self.blend_matrix_node}.target[{i}].scaleWeight", self.weight_scale)
+        print(f"Set target[{i}] weights -> Translate: {self.weight_translate}, Rotate: {self.weight_rotate}, Scale: {self.weight_scale}")
 
-def matrix_cc(*args):
-    global blend_matrix_node
-    
-    def create_with_hold_matrix(object_01, object_02, parent):
+    def create_with_hold_matrix(self, object_01, object_02, parent):
+
+        self.update_pick_matrix_options()
+
         hold_matrix_name = f"holdMat_{object_02}_cc_by_{object_01}"
         mult_matrix_name = f"multMat_{object_02}_cc_by_{object_01}"
         pick_matrix_name = f"pickMat_{object_02}_cc_by_{object_01}"
 
         # Create and connect pickMatrix node
         pick_matrix = cmds.createNode("pickMatrix", name=pick_matrix_name)
-        cmds.setAttr(f"{pick_matrix}.useRotate", pick_matrix_options['rotate'])
-        cmds.setAttr(f"{pick_matrix}.useScale", pick_matrix_options['scale'])
-        cmds.setAttr(f"{pick_matrix}.useTranslate", pick_matrix_options['translate'])
+        cmds.setAttr(f"{pick_matrix}.useRotate", self.pick_matrix_options['rotate'])
+        cmds.setAttr(f"{pick_matrix}.useScale", self.pick_matrix_options['scale'])
+        cmds.setAttr(f"{pick_matrix}.useTranslate", self.pick_matrix_options['translate'])
 
         # Create and connect multMatrix node
         mult_matrix = cmds.createNode("multMatrix", name=mult_matrix_name)
@@ -58,15 +100,18 @@ def matrix_cc(*args):
         cmds.connectAttr(f"{parent}.worldInverseMatrix[0]", f"{mult_matrix}.matrixIn[2]")
         cmds.connectAttr(f"{mult_matrix}.matrixSum", f"{object_02}.offsetParentMatrix")
 
-    def create_without_hold_matrix(object_01, object_02, parent):
+    def create_without_hold_matrix(self, object_01, object_02, parent):
+        
+        self.update_pick_matrix_options()
+        
         mult_matrix_name = f"multMat_{object_02}_cc_by_{object_01}"
         pick_matrix_name = f"pickMat_{object_02}_cc_by_{object_01}"
 
         # Create and connect pickMatrix node
         pick_matrix = cmds.createNode("pickMatrix", name=pick_matrix_name)
-        cmds.setAttr(f"{pick_matrix}.useRotate", pick_matrix_options['rotate'])
-        cmds.setAttr(f"{pick_matrix}.useScale", pick_matrix_options['scale'])
-        cmds.setAttr(f"{pick_matrix}.useTranslate", pick_matrix_options['translate'])
+        cmds.setAttr(f"{pick_matrix}.useRotate", self.pick_matrix_options['rotate'])
+        cmds.setAttr(f"{pick_matrix}.useScale", self.pick_matrix_options['scale'])
+        cmds.setAttr(f"{pick_matrix}.useTranslate", self.pick_matrix_options['translate'])
 
         # Create and connect multMatrix node
         mult_matrix = cmds.createNode("multMatrix", name=mult_matrix_name)
@@ -83,19 +128,17 @@ def matrix_cc(*args):
 
         cmds.connectAttr(f"{mult_matrix}.matrixSum", f"{object_02}.offsetParentMatrix")
 
-    def create_blend_matrix(mult_matrices, constrained_object):
-        global blend_matrix_node
+    def create_blend_matrix(self, mult_matrices, constrained_object):
+        
         blend_matrix_name = f"blendMat_{constrained_object}"
-
-        # Create blendMatrix node
-        blend_matrix_node = cmds.createNode("blendMatrix", name=blend_matrix_name)
+        self.blend_matrix_node = cmds.createNode("blendMatrix", name=blend_matrix_name)
 
         # Connect the first multMatrix to inputMatrix
-        cmds.connectAttr(f"{mult_matrices[0]}.matrixSum", f"{blend_matrix_node}.inputMatrix")
+        cmds.connectAttr(f"{mult_matrices[0]}.matrixSum", f"{self.blend_matrix_node}.inputMatrix")
 
         # Connect all other multMatrix nodes to target[*].targetMatrix
         for index, mult_matrix in enumerate(mult_matrices[1:], start=1):
-            cmds.connectAttr(f"{mult_matrix}.matrixSum", f"{blend_matrix_node}.target[{index - 1}].targetMatrix")
+            cmds.connectAttr(f"{mult_matrix}.matrixSum", f"{self.blend_matrix_node}.target[{index - 1}].targetMatrix")
 
         # Disconnect existing connections to offsetParentMatrix
         existing_connections = cmds.listConnections(f"{constrained_object}.offsetParentMatrix", s=True, d=False, p=True)
@@ -105,54 +148,88 @@ def matrix_cc(*args):
                 cmds.disconnectAttr(connection, f"{constrained_object}.offsetParentMatrix")
 
         # Connect blendMatrix to constrained object
-        cmds.connectAttr(f"{blend_matrix_node}.outputMatrix", f"{constrained_object}.offsetParentMatrix")
+        cmds.connectAttr(f"{self.blend_matrix_node}.outputMatrix", f"{constrained_object}.offsetParentMatrix")
 
         # Set initial weights from sliders
-        update_blend_matrix_weights()
+        self.update_blend_matrix_weights()
 
-    selected_objects = cmds.ls(selection=True)
-    if len(selected_objects) < 2:
-        raise ValueError("Please select at least two objects.")
+    def create_constraint(self):
+        selected_objects = cmds.ls(selection=True)
+        if len(selected_objects) < 2:
+            raise ValueError("Please select at least two objects.")
 
-    constraining_objects = selected_objects[:-1]
-    constrained_object = selected_objects[-1]
+        constraining_objects = selected_objects[:-1]
+        constrained_object = selected_objects[-1]
 
-    parent = cmds.listRelatives(constrained_object, parent=True)
-    if not parent:
-        # Create a group offset
-        offset_constrained_object = cmds.createNode('transform', name='OFF_' + constrained_object)
-        cmds.matchTransform(offset_constrained_object, constrained_object)
-        cmds.parent(constrained_object, offset_constrained_object)
-        cmds.select(clear=True)
-        print("Offset parent for constrained object has been created")
-        parent = offset_constrained_object  # Corrected: Set parent to the new offset object
-    else:
-        parent = parent[0]
+        parent = cmds.listRelatives(constrained_object, parent=True)
+        if not parent:
+            # Create a group offset
+            offset_constrained_object = cmds.createNode('transform', name='OFF_' + constrained_object)
+            cmds.matchTransform(offset_constrained_object, constrained_object)
+            cmds.parent(constrained_object, offset_constrained_object)
+            cmds.select(clear=True)
+            print("Offset parent for constrained object has been created")
+            parent = offset_constrained_object  # Corrected: Set parent to the new offset object
+        else:
+            parent = parent[0]
 
-    pick_matrix_options = {
-        'rotate': cmds.checkBox('rotateCheckBox', query=True, value=True),
-        'scale': cmds.checkBox('scaleCheckBox', query=True, value=True),
-        'translate': cmds.checkBox('translateCheckBox', query=True, value=True),
-    }
+        pick_matrix_options = {
+            'rotate': cmds.checkBox('rotateCheckBox', query=True, value=True),
+            'scale': cmds.checkBox('scaleCheckBox', query=True, value=True),
+            'translate': cmds.checkBox('translateCheckBox', query=True, value=True),
+        }
 
-    mult_matrices = []
+        mult_matrices = []
 
-    use_hold_matrix = cmds.checkBox('offsetCheckBox', query=True, value=True)
+        use_hold_matrix = cmds.checkBox('offsetCheckBox', query=True, value=True)
 
-    if use_hold_matrix:
-        for constraining_object in constraining_objects:
-            create_with_hold_matrix(constraining_object, constrained_object, parent)
-            mult_matrices.append(f"multMat_{constrained_object}_cc_by_{constraining_object}")
-    else:
-        for constraining_object in constraining_objects:
-            create_without_hold_matrix(constraining_object, constrained_object, parent)
-            mult_matrices.append(f"multMat_{constrained_object}_cc_by_{constraining_object}")
+        if use_hold_matrix:
+            for constraining_object in constraining_objects:
+                self.create_with_hold_matrix(constraining_object, constrained_object, parent)
+                mult_matrices.append(f"multMat_{constrained_object}_cc_by_{constraining_object}")
+        else:
+            for constraining_object in constraining_objects:
+                self.create_without_hold_matrix(constraining_object, constrained_object, parent)
+                mult_matrices.append(f"multMat_{constrained_object}_cc_by_{constraining_object}")
 
-    if len(constraining_objects) > 1:
-        create_blend_matrix(mult_matrices, constrained_object)
+        if len(constraining_objects) > 1:
+            self.create_blend_matrix(mult_matrices, constrained_object)
+
+    def matrix_cc(self):
+        selected_objects = cmds.ls(selection=True)
+        if len(selected_objects) < 2:
+            cmds.warning("Select at least two objects.")
+            return
+
+        constraining_objects = selected_objects[:-1]
+        constrained_object = selected_objects[-1]
+        parent = cmds.listRelatives(constrained_object, parent=True)
+
+        if not parent:
+            offset_constrained_object = cmds.createNode('transform', name='OFF_' + constrained_object)
+            cmds.matchTransform(offset_constrained_object, constrained_object)
+            cmds.parent(constrained_object, offset_constrained_object)
+            cmds.select(clear=True)
+            parent = offset_constrained_object
+        else:
+            parent = parent[0]
+
+        use_hold_matrix = cmds.checkBox('offsetCheckBox', query=True, value=True)
+
+        mult_matrices = []
+        for obj in constraining_objects:
+            if use_hold_matrix:
+                self.create_with_hold_matrix(obj, constrained_object, parent)
+            else:
+                self.create_without_hold_matrix(obj, constrained_object, parent)
+            mult_matrices.append(f"multMat_{constrained_object}_cc_by_{obj}")
+
+        if len(constraining_objects) > 1:
+            self.create_blend_matrix(mult_matrices, constrained_object)
+
 
 # Create UI
-def matrix_cc_ui():
+def matrix_cc_ui(matrix_constraint):
     if cmds.window("matrixCCWindow", exists=True):
         cmds.deleteUI("matrixCCWindow")
         
@@ -164,9 +241,15 @@ def matrix_cc_ui():
 
     # Matrix Add Button Function
     def matrix_cc_add(*args):
-        matrix_cc()
-        update_blend_matrix_weights()
-        cmds.deleteUI(window, window=True)
+        matrix_constraint.update_blend_matrix_weights()
+        matrix_constraint.matrix_cc()
+        matrix_constraint.update_blend_matrix_weights()
+        cmds.deleteUI("matrixCCWindow", window=True)
+    
+    def matrix_cc_apply(*args):
+        matrix_constraint.update_blend_matrix_weights()
+        matrix_constraint.matrix_cc()
+        matrix_constraint.update_blend_matrix_weights()
 
     # Text Variables
     offset_text = "Maintain offset:"
@@ -235,14 +318,14 @@ def matrix_cc_ui():
                     attachForm=[(translate_x, 'left', 184), (translate_y, 'left', 254), (translate_z, 'left', 324)])
 
     # Add sliders with input boxes
-    global weight_translate_slider
+    
     weight_translate_form = cmds.formLayout(parent=main_layout)
     weight_translate_label = cmds.text(label=weight_text, parent=weight_translate_form)
-    weight_translate_slider = cmds.floatSliderGrp(field=True, minValue=0.0000, maxValue=1.0000, fieldMinValue=-10.0, fieldMaxValue=20.0, value=0.5000, parent=weight_translate_form)
+    cmds.floatSliderGrp("translateWeightSlider",field=True, minValue=0.0000, maxValue=1.0000, fieldMinValue=-10.0, fieldMaxValue=20.0, value=0.5000, parent=weight_translate_form, changeCommand=lambda *args: matrix_constraint.update_blend_matrix_weights())
     cmds.formLayout(weight_translate_form, edit=True,
                     attachForm=[(weight_translate_label, 'left', 138), (weight_translate_label, 'top', 6),
-                                (weight_translate_slider, 'top', 1)],
-                    attachControl=[(weight_translate_slider, 'left', 3, weight_translate_label)])
+                                ("translateWeightSlider", 'top', 1)],
+                    attachControl=[("translateWeightSlider", 'left', 3, weight_translate_label)])
 
     # Form layout of Rotate
     rotate_form = cmds.formLayout(parent=main_layout)
@@ -262,14 +345,13 @@ def matrix_cc_ui():
                     attachForm=[(rotate_x, 'left', 184), (rotate_y, 'left', 254), (rotate_z, 'left', 324)])
 
     # Add sliders with input boxes
-    global weight_rotate_slider
     weight_rotate_form = cmds.formLayout(parent=main_layout)
     weight_rotate_label = cmds.text(label=weight_text, parent=weight_rotate_form)
-    weight_rotate_slider = cmds.floatSliderGrp(field=True, minValue=0.0000, maxValue=1.0000, fieldMinValue=-10.0, fieldMaxValue=20.0, value=0.5000, parent=weight_rotate_form)
+    cmds.floatSliderGrp("rotateWeightSlider", field=True, minValue=0.0000, maxValue=1.0000, fieldMinValue=-10.0, fieldMaxValue=20.0, value=0.5000, parent=weight_rotate_form, changeCommand=lambda *args: matrix_constraint.update_blend_matrix_weights())
     cmds.formLayout(weight_rotate_form, edit=True,
                     attachForm=[(weight_rotate_label, 'left', 138), (weight_rotate_label, 'top', 6),
-                                (weight_rotate_slider, 'top', 1)],
-                    attachControl=[(weight_rotate_slider, 'left', 3, weight_rotate_label)])
+                                ("rotateWeightSlider", 'top', 1)],
+                    attachControl=[("rotateWeightSlider", 'left', 3, weight_rotate_label)])
 
     # Form layout of Scale
     scale_form = cmds.formLayout(parent=main_layout)
@@ -289,14 +371,13 @@ def matrix_cc_ui():
                     attachForm=[(scale_x, 'left', 184), (scale_y, 'left', 254), (scale_z, 'left', 324)])
 
     # Add sliders with input boxes
-    global weight_scale_slider
     weight_scale_form = cmds.formLayout(parent=main_layout)
     weight_scale_label = cmds.text(label=weight_text, parent=weight_scale_form)
-    weight_scale_slider = cmds.floatSliderGrp(field=True, minValue=0.0000, maxValue=1.0000, fieldMinValue=-10.0, fieldMaxValue=20.0, value=0.5000, parent=weight_scale_form)
+    cmds.floatSliderGrp("scaleWeightSlider", field=True, minValue=0.0000, maxValue=1.0000, fieldMinValue=-10.0, fieldMaxValue=20.0, value=0.5000, parent=weight_scale_form, changeCommand=lambda *args: matrix_constraint.update_blend_matrix_weights())
     cmds.formLayout(weight_scale_form, edit=True,
                     attachForm=[(weight_scale_label, 'left', 138), (weight_scale_label, 'top', 6),
-                                (weight_scale_slider, 'top', 1)],
-                    attachControl=[(weight_scale_slider, 'left', 3, weight_scale_label)])
+                                ("scaleWeightSlider", 'top', 1)],
+                    attachControl=[("scaleWeightSlider", 'left', 3, weight_scale_label)])
 
     cmds.setParent(main_layout)  # Return to parent layout
 
@@ -304,7 +385,7 @@ def matrix_cc_ui():
     button_layout = cmds.formLayout(parent=form)
     
     add_button = cmds.button(label="Add", command=matrix_cc_add)
-    apply_button = cmds.button(label="Apply", command=matrix_cc)
+    apply_button = cmds.button(label="Apply", command=matrix_cc_apply)
     close_button = cmds.button(label="Close", command=lambda *args: cmds.deleteUI(window, window=True))
     
     cmds.formLayout(button_layout, edit=True, 
@@ -329,4 +410,5 @@ def matrix_cc_ui():
 
     cmds.showWindow(window)
 
-matrix_cc_ui()
+matrix_constraint = MatrixConstraint()
+matrix_cc_ui(matrix_constraint)
