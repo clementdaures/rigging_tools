@@ -1,7 +1,16 @@
-'''
+# -*- coding: utf-8 -*-
+""" Class to reorder attributes
+
+This file provides class to reorder attributes.
+
+Author: Clement Daures
+Created: 2023
+
+# ---------- LICENSE ----------
+
 MIT License
 
-Copyright (c) 2024 Clement Daures
+Copyright (c) 2023 Clement Daures
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -20,7 +29,7 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-'''
+"""
 
 import maya.cmds as cmds
 
